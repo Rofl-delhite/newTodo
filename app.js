@@ -1,20 +1,26 @@
 const express = require("express");
-const path = require("path");
 const app = express();
-const bodyParser = require("body-parser");
+const router = express.Router();
 const mongoose = require("mongoose");
-const userLocal = require("./userLocalSchema");
-const tasks = require("./taskSchema");
-const keys = require("./keys");
-app.use(bodyParser.urlencoded({ extended: false }));
+const keys = require("./config/keys");
+const users = require("./models/users");
+const tasks = require("./models/tasks");
+const bodyParser = require("body-parser");
+const bcrypt = require("bcrypt");
+
+//body parser
 app.use(bodyParser.json());
-app.get("/", function (req, res) {
-  res.sendFile(path.join(__dirname, "/index.html"));
+app.use(bodyParser.urlencoded({ extended: true }));
+
+app.use("/", router);
+
+router.get("/", (req, res) => {
+  res.send("signup/login");
 });
-app.get("/login", (req, res) => {
-  res.sendFile(path.join(__dirname, "/login.html"));
+router.get("/login", (req, res) => {
+  res.send("login");
 });
-app.post("/tasks/create", (req, res) => {
+router.post("/tasks/create", (req, res) => {
   let { task, description, assignedTo } = req.body;
   let id = Math.ceil(Math.random() * 10);
   tasks({
@@ -25,12 +31,12 @@ app.post("/tasks/create", (req, res) => {
   }).save();
   res.send("task saved successfully");
 });
-app.delete("/tasks/delete", async (req, res) => {
+router.delete("/tasks/delete", async (req, res) => {
   let { id } = req.body;
   await tasks.deleteOne({ id });
   res.send("delete successfull");
 });
-app.put("/tasks/update", async (req, res) => {
+router.put("/tasks/update", async (req, res) => {
   let { task, description, assignedTo, id } = req.body;
   let result = await tasks.updateOne(
     { id },
@@ -45,7 +51,7 @@ app.put("/tasks/update", async (req, res) => {
   );
   res.send(result);
 });
-app.get("/tasks", (req, res) => {
+router.get("/tasks", (req, res) => {
   tasks.find(
     {
       assignedTo: req.query.user,
@@ -58,25 +64,25 @@ app.get("/tasks", (req, res) => {
     }
   );
 });
-app.post("/submit", (req, res) => {
+router.post("/submit", (req, res) => {
   let { name, email, password } = req.body;
-  userLocal.findOne({ email: email }, (err, data) => {
+  users.findOne({ email: email }, (err, data) => {
     if (err) throw err;
     if (!data) {
-      userLocal({
+      users({
         name,
         email,
         password,
       }).save();
-      res.redirect("/login");
+      res.status(201).json({ message: "user saved" });
     } else {
-      res.redirect("/login");
+      res.status(422).json({ error: "email already exists" });
     }
   });
 });
-app.get("/log-in", (req, res) => {
+router.get("/log-in", (req, res) => {
   let { email, password } = req.query;
-  userLocal.findOne({ email: email }, (err, data) => {
+  users.findOne({ email: email }, (err, data) => {
     if (err) throw err;
     if (data.password === password) {
       res.redirect("/tasks?user=" + email);
@@ -85,7 +91,19 @@ app.get("/log-in", (req, res) => {
     }
   });
 });
-
+router.use((req, res, next) => {
+  const err = new Error();
+  err.status = 404;
+  next(err);
+});
+router.use((err, req, res, next) => {
+  res.status(err.status || 500);
+  res.json({
+    error: {
+      message: err.message,
+    },
+  });
+});
 mongoose.connect(keys.mongoURI);
 app.listen(3000, () => {
   console.log("http://localhost:3000");

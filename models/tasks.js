@@ -5,4 +5,4 @@ const taskSchema = new mongoose.Schema({
   assignedTo: String,
   id: Number,
 });
-module.exports = new mongoose.model("task", taskSchema);
+module.exports = new mongoose.model("tasks", taskSchema);
